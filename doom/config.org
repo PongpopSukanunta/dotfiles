@@ -1,0 +1,111 @@
+#+title: Config
+
+* Doom
+#+begin_src emacs-lisp
+(setq user-full-name "Pongpop Sukanunta"
+      user-mail-address "p.sukanunta@gmail.com")
+
+(add-to-list 'default-frame-alist '(alpha-background . 70))
+
+(setq doom-font (font-spec :family "JetBrainsMono Nerd Font" :size 14 )
+      doom-variable-pitch-font (font-spec :family "Source Sans Pro" :size 14))
+
+(setq doom-theme 'doom-tokyo-night)
+
+(setq display-line-numbers-type 'relative)
+(setq confirm-kill-emacs nil)
+(setq initial-buffer-choice "~/org/ThePile.org")
+
+(add-hook 'text-mode-hook (lambda () (hl-line-mode -1)))
+
+#+end_src
+* Org
+#+begin_src emacs-lisp
+(setq org-directory "~/org/")
+(setq org-roam-directory "~/org/roam/")
+(setq org-default-notes-file (concat org-directory "/ThePile.org"))
+
+
+(after! org
+ (setq org-todo-keywords
+        '((sequence
+           "TODO(t)"
+           "SCHEDULED(s)"
+           "WAIT(w@)"
+           "|"
+           "DONE(d)"
+           "KILL(k@/!)")
+          )
+        org-todo-keyword-faces
+        '(("WAIT" . +org-todo-onhold)
+          ("SCHEDULED" . +org-todo-onhold)
+          ("KILL" . +org-todo-cancel))
+        org-capture-templates
+        '(("t" "Todo" entry (file+headline "~/org/ThePile.org" "Tasks") "* TODO %?")
+          ("i" "Idea" entry (file+headline "~/org/ThePile.org" "Ideas") "* %?")
+          ("r" "Reminder" entry (file+headline "~/org/ThePile.org" "Reminders") "* %? %^{When}t")
+          ("s" "Snap" entry (file+olp+datetree "~/org/TheSnap.org") "* [%(format-time-string \"%H:%M\")] %?" )
+          )
+ )
+
+ (setq org-src-fontify-natively t
+       org-src-tab-acts-natively t
+       org-edit-src-content-indentation 0)
+
+ (setq org-startup-with-latex-preview t
+       org-startup-with-inline-images t)
+
+ (dolist (face '((org-level-1 . 1.6)
+                 (org-level-2 . 1.5)
+                 (org-level-3 . 1.4)
+                 (org-level-4 . 1.3)
+                 (org-level-5 . 1.2)
+                 (org-level-6 . 1.1)
+                 (org-level-7 . 1.1)
+                 (org-level-8 . 1.1)
+                 ))
+   (set-face-attribute (car face) nil :font "Source Sans Pro" :weight 'bold :height (cdr face)))
+ (set-face-attribute 'org-document-title nil :font "Source Sans Pro" :weight 'bold :height 1.8)
+
+ (require 'org-indent)
+ (set-face-attribute 'org-table nil         :inherit 'fixed-pitch)
+ (set-face-attribute 'org-indent nil :inherit '(org-hide fixed-pitch))
+ (set-face-attribute 'org-block nil            :foreground nil :inherit 'fixed-pitch :height 0.85)
+ (set-face-attribute 'org-code nil             :inherit '(shadow fixed-pitch) :height 0.85)
+ (set-face-attribute 'org-indent nil           :inherit '(org-hide fixed-pitch) :height 0.85)
+ (set-face-attribute 'org-verbatim nil         :inherit '(shadow fixed-pitch) :height 0.85)
+ (set-face-attribute 'org-special-keyword nil  :inherit '(font-lock-comment-face fixed-pitch))
+ (set-face-attribute 'org-meta-line nil        :inherit '(font-lock-comment-face fixed-pitch))
+ (set-face-attribute 'org-checkbox nil         :inherit 'fixed-pitch)
+ (set-face-attribute 'org-table nil         :inherit 'fixed-pitch)
+
+(font-lock-add-keywords 'org-mode
+                          '(("^ *\\([-]\\) "
+                             (0 (prog1 () (compose-region (match-beginning 1) (match-end 1) "•"))))))
+
+)
+
+#+end_src
+** Export
+#+begin_src emacs-lisp
+(require 'ox-reveal)
+(setq org-reveal-root "file:///home/ppsk/reveal.js-master/")
+#+end_src
+** Hook
+#+begin_src emacs-lisp
+
+ (add-hook 'org-mode-hook 'olivetti-mode)
+ (add-hook 'org-mode-hook (lambda ()
+                            (variable-pitch-mode 1)
+                            (setq indicate-empty-lines nil)
+                            (display-line-numbers-mode -1)))
+(add-hook 'org-mode-hook (lambda () (org-superstar-mode 1)))
+#+end_src
+* Git-auto-commit
+#+begin_src emacs-lisp
+(defun set-my-settings ()
+  (setq gac-automatically-push-p t))
+
+(add-hook 'org-mode-hook 'git-auto-commit-mode)
+(add-hook 'org-mode-hook 'set-my-settings)
+#+end_src
