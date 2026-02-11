@@ -1,4 +1,5 @@
 #+title: Config
+#+PROPERTY: header-args:emacs-lisp  :tangle config.el
 
 * Doom
 #+begin_src emacs-lisp
