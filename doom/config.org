@@ -8,7 +8,7 @@
 (add-to-list 'default-frame-alist '(alpha-background . 70))
 
 (setq doom-font (font-spec :family "JetBrainsMono NF" :size 14 )
-      doom-variable-pitch-font (font-spec :family "Source Sans Pro" :size 14))
+      doom-variable-pitch-font (font-spec :family "Source Sans Pro" :size 16))
 
 (setq doom-theme 'doom-tokyo-night)
 
