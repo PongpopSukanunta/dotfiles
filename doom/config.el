@@ -1,13 +1,9 @@
-#+title: Config
-#+PROPERTY: header-args:emacs-lisp  :tangle yes 
-* Doom
-#+begin_src emacs-lisp 
 (setq user-full-name "Pongpop Sukanunta"
       user-mail-address "p.sukanunta@gmail.com")
 
 (add-to-list 'default-frame-alist '(alpha-background . 70))
 
-(setq doom-font (font-spec :family "JetBrainsMono Nerd Font" :size 14 )
+(setq doom-font (font-spec :family "JetBrainsMono NF" :size 14 )
       doom-variable-pitch-font (font-spec :family "Source Sans Pro" :size 18))
 
 (setq doom-theme 'doom-tokyo-night)
@@ -18,9 +14,6 @@
 
 (add-hook 'text-mode-hook (lambda () (hl-line-mode -1)))
 
-#+end_src
-* Org
-#+begin_src emacs-lisp
 (setq org-directory "~/org/")
 (setq org-roam-directory "~/org/roam/")
 (setq org-default-notes-file (concat org-directory "/ThePile.org"))
@@ -87,19 +80,13 @@
    '(org-block-begin-line :inherit fixed-pitch)
    '(org-block-end-line :inherit fixed-pitch)
    '(org-meta-line :inherit fixed-pitch)
-   '(org-verbatim :inherit fixed-pitch)
+   '(org-verbatim :inherit fixed-pitch))
    )
 
 )
 
-#+end_src
-** Export
-#+begin_src emacs-lisp
 (require 'ox-reveal)
 (setq org-reveal-root "file:///home/ppsk/reveal.js-master/")
-#+end_src
-** Hook
-#+begin_src emacs-lisp
 
  (add-hook 'org-mode-hook 'olivetti-mode)
  (add-hook 'org-mode-hook (lambda ()
@@ -107,12 +94,9 @@
                             (setq indicate-empty-lines nil)
                             (display-line-numbers-mode -1)))
 (add-hook 'org-mode-hook (lambda () (org-superstar-mode 1)))
-#+end_src
-* Git-auto-commit
-#+begin_src emacs-lisp
+
 (defun set-my-settings ()
   (setq gac-automatically-push-p t))
 
 (add-hook 'org-mode-hook 'git-auto-commit-mode)
 (add-hook 'org-mode-hook 'set-my-settings)
-#+end_src
