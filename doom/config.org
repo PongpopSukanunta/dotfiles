@@ -109,6 +109,9 @@
                             (org-roam-db-autosync-mode)))
 (add-hook 'org-mode-hook (lambda () (org-superstar-mode 1)))
 #+end_src
+
+#+RESULTS:
+
 * Git-auto-commit
 #+begin_src emacs-lisp
 (defun set-my-settings ()
