@@ -24,7 +24,7 @@
 (setq org-directory "~/org/")
 (setq org-roam-directory "~/org/roam/")
 (setq org-default-notes-file (concat org-directory "/ThePile.org"))
-
+(setq org-log-done 'time)
 
 (after! org
  (setq org-todo-keywords
