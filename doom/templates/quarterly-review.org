@@ -1,0 +1,48 @@
+#+title: Quarterly Review %<%Y>-Q%q
+#+date: %<%Y-%m-%d>
+#+filetags: :review:quarterly:
+
+* Process evaluation
+
+** What's working
+-
+
+** What's not working
+-
+
+** What needs to change
+-
+
+* Pillars and value goals
+Are they still the right ones?
+
+** Value goal review
+- Are these still what I want?
+- Any to retire or revise?
+
+** Pillar review
+- Are these the right life domains for me right now?
+- Anything missing?
+- Anything to merge or split?
+
+* Fleeting notes review
+Open knowledge/fleeting/. For each:
+- Promote to permanent concept note, OR
+- Link into an existing concept, OR
+- Delete.
+
+* Someday list review
+Open someday.org. For each item:
+- Promote to active project this quarter, OR
+- Keep parked, OR
+- Honestly delete.
+
+* Next quarter focus
+
+** Theme for the quarter
+-
+
+** Top 3 outcomes
+1.
+2.
+3.

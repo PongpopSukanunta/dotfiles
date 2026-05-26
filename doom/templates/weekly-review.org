@@ -1,0 +1,45 @@
+#+title: Weekly Review %<%Y-W%V>
+#+date: %<%Y-%m-%d>
+#+filetags: :review:weekly:
+
+* Past Week
+
+** Time spent
+#+BEGIN: clocktable :scope agenda :block lastweek :maxlevel 3 :compact t
+#+END:
+
+** Accomplishments
+-
+
+** Disappointments
+-
+
+** Highlights & struggles
+-
+
+** Lessons learned
+-
+
+* Cleanup
+- [ ] Inbox to zero
+- [ ] Calendar 3-week look-ahead reviewed
+- [ ] DONE tasks archived in each active project
+- [ ] Re-read guiding principles for each pillar
+
+* Project review
+For each active project: direction / progress / next-week tasks.
+
+** [Project A]
+   - Direction:
+   - Progress:
+   - Next week:
+
+* Next Week Plan
+
+** Top 3 priorities
+1.
+2.
+3.
+
+** Other commitments
+-

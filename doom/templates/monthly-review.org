@@ -1,0 +1,34 @@
+#+title: Monthly Review %<%Y-%m>
+#+date: %<%Y-%m-%d>
+#+filetags: :review:monthly:
+
+* The Month in Review
+
+** Breakthroughs
+-
+
+** Discoveries
+-
+
+** Notable activities
+-
+
+** Improvements going forward
+-
+
+** Time spent by pillar
+#+BEGIN: clocktable :scope agenda :block thismonth :maxlevel 2 :compact t
+#+END:
+
+* Pillar review
+Walk each pillar node. Refine principles, retire stale projects, spawn new ones if needed.
+
+** [Pillar 1]
+   - Still aligned with its value goal?
+   - Adjustments:
+
+* Performance review
+Look at daily and weekly review notes. Patterns? Bottlenecks?
+
+* Bookkeeping
+- [ ] Done (handled outside this system)

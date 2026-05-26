@@ -13,11 +13,6 @@
 ;; To install SOME-PACKAGE from MELPA, ELPA or emacsmirror:
 ;; (package! some-package)
 
-(package! olivetti)
-(package! ox-reveal)
-(package! git-auto-commit-mode)
-(package! org-superstar)
-
 ;; To install a package directly from a remote git repo, you must specify a
 ;; `:recipe'. You'll find documentation on what `:recipe' accepts here:
 ;; https://github.com/radian-software/straight.el#the-recipe-format
@@ -57,3 +52,15 @@
 ;; (unpin! pinned-package another-pinned-package)
 ;; ...Or *all* packages (NOT RECOMMENDED; will likely break things)
 ;; (unpin! t)
+
+;; ──────────────────────────────────────────────────────────
+;; Life OS additions
+;; ──────────────────────────────────────────────────────────
+(package! org-super-agenda)
+(package! calfw)
+(package! calfw-org)
+(package! org-modern)    ; modern visual styling for org-mode
+(package! org-roam-ui)   ; optional: graph visualization at http://localhost:35901
+(package! olivetti)      ; centered, narrowed writing area for org files
+(package! catppuccin-theme) ; Catppuccin palette (latte/frappe/macchiato/mocha)
+

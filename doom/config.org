@@ -1,122 +1,884 @@
-#+title: Config
-#+PROPERTY: header-args:emacs-lisp  :tangle yes 
-* Doom
-#+begin_src emacs-lisp 
-(setq user-full-name "Pongpop Sukanunta"
-      user-mail-address "p.sukanunta@gmail.com")
+#+title: Doom Emacs — Life OS Configuration
+#+author: Pongpop
+#+property: header-args:emacs-lisp :tangle yes :results silent
+#+startup: overview
 
-(add-to-list 'default-frame-alist '(alpha-background . 70))
+* About this file
+:PROPERTIES:
+:CUSTOM_ID: about
+:END:
 
-(setq doom-font (font-spec :family "JetBrainsMono NF" :size 14 )
-      doom-variable-pitch-font (font-spec :family "Source Sans Pro" :size 18))
+This is a *literate configuration* for Doom Emacs. The =:config (literate)=
+Doom module auto-tangles this file into =config.el= every time you run =doom
+sync=. You should *never edit =config.el= directly* — it is regenerated on
+every tangle.
 
-(setq doom-theme 'doom-tokyo-night)
+Editing workflow:
+1. Open this file (=~/.config/doom/config.org=).
+2. Use =C-c '= inside any source block to edit it in a real elisp buffer.
+3. Save and exit the block with =C-c '= again.
+4. =M-x org-babel-tangle= to regenerate =config.el= immediately, then
+   =M-x doom/reload= to apply changes — or run =doom sync= from a shell.
 
-(setq display-line-numbers-type 'relative)
-(setq confirm-kill-emacs nil)
-(setq initial-buffer-choice "~/org/ThePile.org")
+The file-level =#+property: header-args:emacs-lisp :tangle yes= line above
+sets tangling as the default for every =emacs-lisp= block, so individual
+blocks don't need to repeat =:tangle yes=. A block can opt out with
+=:tangle no=.
 
-(add-hook 'text-mode-hook (lambda () (hl-line-mode -1)))
+* Startup
+:PROPERTIES:
+:CUSTOM_ID: startup
+:END:
 
-#+end_src
-* Org
+Open dired on =~/org/= as the first buffer at startup, instead of the
+Doom dashboard. =SPC .= and other file-finding commands then default
+to =~/org/= since that's the current buffer's directory.
+
+To get the Doom dashboard back, comment out the =initial-buffer-choice=
+setting.
+
 #+begin_src emacs-lisp
+(setq initial-buffer-choice (lambda () (find-file "~/org/inbox.org")))
+#+end_src
+
+* Org base
+:PROPERTIES:
+:CUSTOM_ID: org-base
+:END:
+
+Org directory, agenda files, TODO keywords, archive location, and small
+quality-of-life defaults. This is the foundation every other block builds on.
+
+The TODO sequence is:
+
+- =TODO= — not started
+- =STRT= — in progress (currently working on)
+- =WAIT= — blocked on someone/something
+- =DONE= — finished
+- =KILL= — dropped (different from DONE; useful for honest reviews)
+
+The =(t/s/w@/!/d!/k@)= keys after each keyword are the single-letter
+shortcuts after =C-c C-t=. The =!=/=@= flags log a timestamp / prompt for
+a note on state entry.
+
+Archive goes to a =* Archive= heading at the bottom of the same file so
+history stays alongside the project for grep and review.
+
+#+begin_src emacs-lisp
+;; ──────────────────────────────────────────────────────────
+;; Org directory and agenda files
+;; ──────────────────────────────────────────────────────────
 (setq org-directory "~/org/")
-(setq org-roam-directory "~/org/roam/")
-(setq org-default-notes-file (concat org-directory "/ThePile.org"))
-(setq org-log-done 'time)
 
 (after! org
- (setq org-todo-keywords
-        '((sequence
-           "TODO(t)"
-           "PROJ(p)"
-           "SCHEDULED(s)"
-           "WAIT(w@)"
-           "|"
-           "DONE(d)"
-           "KILL(k@/!)")
-          )
-        org-todo-keyword-faces
-        '(("WAIT" . +org-todo-onhold)
-          ("SCHEDULED" . +org-todo-onhold)
-          ("KILL" . +org-todo-cancel))
-        org-capture-templates
-        '(("t" "Todo" entry (file+headline "~/org/ThePile.org" "Tasks") "* TODO %?")
-          ("i" "Idea" entry (file+headline "~/org/ThePile.org" "Ideas") "* %?")
-          ("r" "Reminder" entry (file+headline "~/org/ThePile.org" "Reminders") "* %? %^{When}t")
-          ("s" "Snap" entry (file+olp+datetree "~/org/TheSnap.org") "* [%(format-time-string \"%H:%M\")] %?" )
-          )
- )
+  ;; Files that contribute TODOs to the agenda.
+  (setq org-agenda-files
+        (list (concat org-directory "goals/")
+              (concat org-directory "pillars/")
+              (concat org-directory "projects/")
+              (concat org-directory "daily/")
+              (concat org-directory "inbox.org")))
 
- (setq org-src-fontify-natively t
-       org-src-tab-acts-natively t
-       org-edit-src-content-indentation 0)
+  ;; ────────────────────────────────────────────────────────
+  ;; TODO keywords
+  ;;   TODO  - not started
+  ;;   STRT  - in progress (currently working on)
+  ;;   WAIT  - blocked on someone/something
+  ;;   DONE  - finished
+  ;;   KILL  - dropped (different from done; useful for honest review)
+  ;;
+  ;; (s/w/d/k/etc.) = single-key shortcut after C-c C-t
+  ;; !   = log a timestamp on state entry
+  ;; @   = prompt for a note on state entry
+  ;; /!  = log timestamp on state EXIT
+  ;; ────────────────────────────────────────────────────────
+  (setq org-todo-keywords
+        '((sequence "TODO(t)" "STRT(s)" "WAIT(w@/!)"
+                    "|"
+                    "DONE(d!)" "KILL(k@)")))
 
- (setq org-startup-with-latex-preview t
-       org-startup-with-inline-images t)
+  ;; Color the state keywords for quick visual scanning.
+  ;; Catppuccin Macchiato palette:
+  ;;   green   #a6da95   blue   #8aadf4   yellow #eed49f
+  ;;   red     #ed8796   overlay0 #6e738d (muted)
+  (setq org-todo-keyword-faces
+        '(("TODO" . (:foreground "#a6da95" :weight bold))   ; green — to do
+          ("STRT" . (:foreground "#8aadf4" :weight bold))   ; blue  — in progress
+          ("WAIT" . (:foreground "#eed49f" :weight bold))   ; yellow — blocked
+          ("DONE" . (:foreground "#6e738d" :weight normal)) ; muted — out of sight
+          ("KILL" . (:foreground "#ed8796" :weight bold)))) ; red — dropped
 
- (dolist (face '((org-level-1 . 1.6)
-                 (org-level-2 . 1.5)
-                 (org-level-3 . 1.4)
-                 (org-level-4 . 1.3)
-                 (org-level-5 . 1.2)
-                 (org-level-6 . 1.1)
-                 (org-level-7 . 1.1)
-                 (org-level-8 . 1.1)
-                 ))
-   (set-face-attribute (car face) nil :font "Source Sans Pro" :weight 'bold :height (cdr face)))
- (set-face-attribute 'org-document-title nil :font "Source Sans Pro" :weight 'bold :height 1.8)
+  ;; Always record a timestamp when marking DONE.
+  (setq org-log-done 'time)
+  ;; Tuck state-change log entries into a :LOGBOOK: drawer (folded by default).
+  (setq org-log-into-drawer t)
 
- ;; (require 'org-indent)
- ;; (set-face-attribute 'org-table nil         :inherit 'fixed-pitch)
- ;; (set-face-attribute 'org-indent nil :inherit '(org-hide fixed-pitch))
- ;; (set-face-attribute 'org-block nil            :foreground nil :inherit 'fixed-pitch :height 0.85)
- ;; (set-face-attribute 'org-code nil             :inherit '(shadow fixed-pitch) :height 0.85)
- ;; (set-face-attribute 'org-indent nil           :inherit '(org-hide fixed-pitch) :height 0.85)
- ;; (set-face-attribute 'org-verbatim nil         :inherit '(shadow fixed-pitch) :height 0.85)
- ;; (set-face-attribute 'org-special-keyword nil  :inherit '(font-lock-comment-face fixed-pitch))
- ;; (set-face-attribute 'org-meta-line nil        :inherit '(font-lock-comment-face fixed-pitch))
- ;; (set-face-attribute 'org-checkbox nil         :inherit 'fixed-pitch)
- ;; (set-face-attribute 'org-table nil         :inherit 'fixed-pitch)
+  ;; ────────────────────────────────────────────────────────
+  ;; Archive
+  ;; ────────────────────────────────────────────────────────
+  ;; Archive completed tasks to a "* Archive" heading at the bottom
+  ;; of the SAME file. Keeps history with the project for grep/review.
+  (setq org-archive-location "::* Archive")
 
- (custom-set-faces!
-   '(org-table :inherit fixed-pitch)
-   '(org-code :inherit fixed-pitch)
-   '(org-block :inherit fixed-pitch)
-   '(org-block-begin-line :inherit fixed-pitch)
-   '(org-block-end-line :inherit fixed-pitch)
-   '(org-meta-line :inherit fixed-pitch)
-   '(org-verbatim :inherit fixed-pitch)
-   )
-
-)
-
-#+end_src
-** Export
-#+begin_src emacs-lisp
-(require 'ox-reveal)
-(setq org-reveal-root "file:///home/ppsk/reveal.js-master/")
-#+end_src
-** Hook
-#+begin_src emacs-lisp
-
- (add-hook 'org-mode-hook 'olivetti-mode)
- (add-hook 'org-mode-hook (lambda ()
-                            (variable-pitch-mode 1)
-                            (setq indicate-empty-lines nil)
-                            (display-line-numbers-mode -1)
-                            (org-roam-db-autosync-mode)))
-(add-hook 'org-mode-hook (lambda () (org-superstar-mode 1)))
+  ;; ────────────────────────────────────────────────────────
+  ;; Misc quality-of-life
+  ;; ────────────────────────────────────────────────────────
+  (setq org-startup-folded 'content        ; show headings on open
+        org-startup-indented t              ; indent by heading level
+        org-hide-emphasis-markers t         ; cleaner inline formatting
+        org-pretty-entities t
+        org-image-actual-width '(400)
+        org-tags-column 0                   ; tags right after heading text
+        org-fold-catch-invisible-edits 'smart
+        org-ellipsis " ▾"))                 ; folded-heading marker
 #+end_src
 
-#+RESULTS:
+* Org-roam
+:PROPERTIES:
+:CUSTOM_ID: org-roam
+:END:
 
-* Git-auto-commit
+Org-roam v2 setup: the relational backbone of the Life OS graph. All roam
+nodes live anywhere under =~/org/=; the dailies live in =~/org/daily/=.
+
+The database autosync mode keeps the link graph up to date without manual
+=org-roam-db-sync= calls.
+
 #+begin_src emacs-lisp
-(defun set-my-settings ()
-  (setq gac-automatically-push-p t))
+;; ──────────────────────────────────────────────────────────
+;; Org-roam (v2)
+;; ──────────────────────────────────────────────────────────
+(use-package! org-roam
+  :custom
+  (org-roam-directory (file-truename "~/org/"))
+  (org-roam-dailies-directory "daily/")
+  (org-roam-completion-everywhere t)
+  ;; Display backlinks etc. in a side window.
+  (org-roam-mode-section-functions
+   (list #'org-roam-backlinks-section
+         #'org-roam-reflinks-section))
+  :config
+  (org-roam-db-autosync-mode))
+#+end_src
 
-(add-hook 'org-mode-hook 'git-auto-commit-mode)
-(add-hook 'org-mode-hook 'set-my-settings)
+* Roam capture templates (PPV + Vault)
+:PROPERTIES:
+:CUSTOM_ID: roam-captures
+:END:
+
+Templates for capturing Value Goals, Pillars, Projects, Concepts, Literature
+notes, Fleeting notes, and Meeting notes via =SPC n c=.
+
+Hierarchy is enforced via =:filetags:= and an explicit Pillar/Goal link in
+the new file body — the user is prompted for the parent at capture time,
+so the link is always there from the start.
+
+| Key | Template          | Folder                 |
+|-----+-------------------+------------------------|
+| g   | Value Goal        | goals/                 |
+| p   | Pillar            | pillars/               |
+| r   | Project           | projects/              |
+| c   | Concept (perm.)   | knowledge/concepts/    |
+| l   | Literature        | knowledge/literature/  |
+| f   | Fleeting          | knowledge/fleeting/    |
+| m   | Meeting           | meetings/              |
+
+#+begin_src emacs-lisp
+;; ──────────────────────────────────────────────────────────
+;; Helper: prompt for a roam node filtered by tag, return [[id:..]] link.
+;;
+;; Used inside the capture templates below via %(...) so capture-time
+;; produces a real org-roam link (not just plain text). Backlinks pick
+;; the new node up automatically once captured.
+;;
+;; If no nodes with the requested tag exist yet (e.g. capturing the
+;; very first Pillar before any Goal exists), it inserts an empty
+;; string rather than erroring — you can add the link later with
+;; SPC n r i.
+;; ──────────────────────────────────────────────────────────
+(defun life-os/roam-link-by-tag (tag)
+  "Prompt for a roam node tagged TAG and return its [[id:..]] link string."
+  (require 'cl-lib)
+  (let* ((nodes (cl-remove-if-not
+                 (lambda (n) (member tag (org-roam-node-tags n)))
+                 (org-roam-node-list)))
+         (titles (mapcar #'org-roam-node-title nodes)))
+    (if (null nodes)
+        (progn
+          (message "No org-roam nodes tagged :%s: yet — link later with SPC n r i." tag)
+          "")
+      (let* ((choice (completing-read (format "Linked %s: " tag)
+                                      titles nil t))
+             (node (cl-find choice nodes
+                            :key #'org-roam-node-title
+                            :test #'equal)))
+        (if node
+            (format "[[id:%s][%s]]"
+                    (org-roam-node-id node)
+                    (org-roam-node-title node))
+          "")))))
+
+;; ──────────────────────────────────────────────────────────
+;; Roam capture templates
+;;
+;; Hierarchy enforced via :filetags and an explicit parent link in
+;; the new file. The user picks the parent at capture time via the
+;; life-os/roam-link-by-tag helper above.
+;; ──────────────────────────────────────────────────────────
+(after! org-roam
+  (setq org-roam-capture-templates
+        '(("g" "Value Goal" plain
+           "%?"
+           :target (file+head "goals/${slug}.org"
+                              "#+title: ${title}\n#+filetags: :goal:\n\n* Why this matters\n\n* Pillars supporting this goal\n")
+           :unnarrowed t)
+
+          ("p" "Pillar" plain
+           "%?"
+           :target (file+head "pillars/${slug}.org"
+                              "#+title: ${title}\n#+filetags: :pillar:\n\n* Value goal\n%(life-os/roam-link-by-tag \"goal\")\n\n* Guiding principles\n\n* Projects\n\n* Pillar-level tasks\n")
+           :unnarrowed t)
+
+          ("r" "Project" plain
+           "%?"
+           :target (file+head "projects/${slug}.org"
+                              "#+title: ${title}\n#+filetags: :project:\n\n* Pillar\n%(life-os/roam-link-by-tag \"pillar\")\n\n* Definition of done\n\n* Tasks\n\n* Notes\n")
+           :unnarrowed t)
+
+          ("c" "Concept (permanent note)" plain
+           "%?"
+           :target (file+head "knowledge/concepts/${slug}.org"
+                              "#+title: ${title}\n#+filetags: :concept:\n")
+           :unnarrowed t)
+
+          ("l" "Literature note" plain
+           "%?"
+           :target (file+head "knowledge/literature/${slug}.org"
+                              "#+title: ${title}\n#+filetags: :literature:\n\n* Source\n\n* Key ideas\n\n* My takeaways\n")
+           :unnarrowed t)
+
+          ("f" "Fleeting note" plain
+           "%?"
+           :target (file+head "knowledge/fleeting/${slug}.org"
+                              "#+title: ${title}\n#+filetags: :fleeting:\n")
+           :unnarrowed t)
+
+          ("m" "Meeting note" plain
+           "%?"
+           :target (file+head "meetings/%<%Y-%m-%d>-${slug}.org"
+                              "#+title: ${title}\n#+filetags: :meeting:\n#+date: %<%Y-%m-%d>\n\n* Attendees\n\n* Agenda\n\n* Decisions\n\n* Action items\n")
+           :unnarrowed t))))
+#+end_src
+
+* Standard capture templates (inbox, quick tasks, dailies)
+:PROPERTIES:
+:CUSTOM_ID: standard-captures
+:END:
+
+Non-roam =org-capture= templates: inbox tasks, someday/maybe items, project
+notes, and the daily journal.
+
+These are separate from the org-roam capture templates (which create new
+PPV nodes). These templates write into existing files (=inbox.org=,
+=someday.org=, a chosen project) or into the org-roam dailies file for
+today.
+
+#+begin_src emacs-lisp
+;; ──────────────────────────────────────────────────────────
+;; org-capture templates (non-roam)
+;; ──────────────────────────────────────────────────────────
+(after! org
+  (setq org-capture-templates
+        '(;; ── Inbox: one-off tasks, route during weekly review
+          ("i" "Inbox task" entry
+           (file "~/org/inbox.org")
+           "* TODO %?\n  :PROPERTIES:\n  :CAPTURED: %U\n  :END:\n  %i"
+           :empty-lines 1)
+
+          ;; ── Someday/maybe
+          ("s" "Someday / Maybe" entry
+           (file "~/org/someday.org")
+           "* %?\n  :PROPERTIES:\n  :CAPTURED: %U\n  :END:"
+           :empty-lines 1)
+
+          ;; ── Quick note into a project (prompts for project file)
+          ("n" "Note under existing file" entry
+           (file+headline (lambda ()
+                            (read-file-name "Project file: "
+                                            (concat org-directory "projects/")))
+                          "Notes")
+           "* %?\n  %U"
+           :empty-lines 1)
+
+          ;; ── Reviews are appended in the Review block below
+          )))
+
+;; ──────────────────────────────────────────────────────────
+;; Org-roam dailies capture
+;;
+;; Single template only → org-capture skips the template-selection
+;; menu and drops straight into the capture buffer. Add any tags
+;; yourself in the entry body.
+;; ──────────────────────────────────────────────────────────
+(after! org-roam
+  (setq org-roam-dailies-capture-templates
+        '(("d" "default" entry
+           "* %<%H:%M> %?"
+           :target (file+head "%<%Y-%m-%d>.org"
+                              "#+title: %<%Y-%m-%d %A>\n#+filetags: :daily:\n")))))
+#+end_src
+
+* Super-agenda groups
+:PROPERTIES:
+:CUSTOM_ID: super-agenda
+:END:
+
+How tasks are grouped inside the agenda views: overdue, today, in-progress,
+waiting, inbox, upcoming, then auto-grouped by project.
+
+Order of groups matters — earlier groups claim tasks first. =:auto-category=
+at the end buckets everything remaining by its file (project) name.
+
+#+begin_src emacs-lisp
+;; ──────────────────────────────────────────────────────────
+;; Org-super-agenda — daily dashboard grouping
+;; ──────────────────────────────────────────────────────────
+(use-package! org-super-agenda
+  :after org-agenda
+  :init
+  (setq org-super-agenda-groups
+        '((:name "🔥 Overdue"
+           :and (:scheduled past :not (:todo ("DONE" "KILL"))))
+          (:name "📅 Today"
+           :time-grid t
+           :scheduled today)
+          (:name "▶ In progress"
+           :todo "STRT")
+          (:name "⏸ Waiting on"
+           :todo "WAIT")
+          (:name "📥 Inbox"
+           :file-path "inbox\\.org")
+          (:name "🗓 Upcoming this week"
+           :scheduled future
+           :order 90)
+          ;; Everything else: group by category (= filename = project)
+          (:auto-category t
+           :order 100)))
+  :config
+  (org-super-agenda-mode))
+#+end_src
+
+* Custom agenda commands (review dashboards)
+:PROPERTIES:
+:CUSTOM_ID: agenda-commands
+:END:
+
+Daily / Weekly / Monthly / Quarterly / Annual dashboards bound to =SPC A= keys.
+
+| Key | Dashboard | Typical duration |
+|-----+-----------+------------------|
+| D   | Daily     | ~5 min           |
+| W   | Weekly    | ~45–60 min       |
+| M   | Monthly   | ~60–90 min       |
+| Q   | Quarterly | ~2–3 hr          |
+| Y   | Annual    | ~half day        |
+
+Each is a composite agenda view that combines an =agenda= block (a date
+range) with one or more =todo= or =tags= filters. The keybindings in
+Section 9.3.10 wrap each in a =cmd!= for =SPC A= access.
+
+#+begin_src emacs-lisp
+;; ──────────────────────────────────────────────────────────
+;; Custom agenda commands
+;;
+;; D = Daily dashboard           (~5 min review)
+;; W = Weekly dashboard          (~45–60 min)
+;; M = Monthly dashboard         (~60–90 min)
+;; Q = Quarterly dashboard       (~2–3 hr)
+;; Y = Annual dashboard          (~half day)
+;; ──────────────────────────────────────────────────────────
+(after! org-agenda
+  (setq org-agenda-custom-commands
+        '(("D" "Daily dashboard"
+           ((agenda ""
+                    ((org-agenda-span 1)
+                     (org-agenda-start-with-log-mode '(closed clock state))
+                     (org-agenda-overriding-header "📅 TODAY")))
+            (todo "STRT"
+                  ((org-agenda-overriding-header "▶ In progress")))
+            (todo "WAIT"
+                  ((org-agenda-overriding-header "⏸ Waiting on")))
+            (tags "inbox"
+                  ((org-agenda-files (list (concat org-directory "inbox.org")))
+                   (org-agenda-overriding-header "📥 Inbox")))))
+
+          ("W" "Weekly dashboard"
+           ((agenda ""
+                    ((org-agenda-span 7)
+                     (org-agenda-start-day "-7d")
+                     (org-agenda-start-with-log-mode '(closed))
+                     (org-agenda-overriding-header "📊 PAST WEEK")))
+            (agenda ""
+                    ((org-agenda-span 7)
+                     (org-agenda-start-day "+1d")
+                     (org-agenda-overriding-header "🔮 NEXT WEEK")))
+            (todo "STRT|WAIT"
+                  ((org-agenda-overriding-header "▶/⏸ Active and Blocked")))))
+
+          ("M" "Monthly dashboard"
+           ((agenda ""
+                    ((org-agenda-span 'month)
+                     (org-agenda-start-day "-1m")
+                     (org-agenda-start-with-log-mode '(closed))
+                     (org-agenda-overriding-header "📊 PAST MONTH")))
+            (todo "TODO|STRT|WAIT"
+                  ((org-agenda-overriding-header "🗂 All open work")))))
+
+          ("Q" "Quarterly dashboard"
+           ((agenda ""
+                    ((org-agenda-span 90)
+                     (org-agenda-start-day "-90d")
+                     (org-agenda-start-with-log-mode '(closed))
+                     (org-agenda-overriding-header "📊 PAST QUARTER")))
+            (tags "+fleeting"
+                  ((org-agenda-overriding-header "💭 Fleeting notes to process")))))
+
+          ("Y" "Annual dashboard"
+           ((agenda ""
+                    ((org-agenda-span 365)
+                     (org-agenda-start-day "-365d")
+                     (org-agenda-start-with-log-mode '(closed))
+                     (org-agenda-overriding-header "📊 PAST YEAR")))))
+
+          ;; Quick access to the default unified agenda
+          ("a" "All TODOs grouped"
+           ((todo "TODO|STRT|WAIT"))))))
+#+end_src
+
+* Calfw (calendar grid view)
+:PROPERTIES:
+:CUSTOM_ID: calfw
+:END:
+
+Month-grid calendar populated from org-agenda. Bound to =SPC o c=.
+
+Note: the current calfw fork on MELPA renamed its public API from the
+=cfw:= prefix to =calfw-=. We use the new names. =calfw-compat= still
+provides obsolete aliases for the old =cfw:= names.
+
+#+begin_src emacs-lisp
+;; ──────────────────────────────────────────────────────────
+;; Calfw — month-grid calendar populated from org-agenda
+;;
+;; Entry point: M-x calfw-org-open-calendar (bound to SPC o c in Phase 7).
+;;
+;; In the calendar buffer:
+;;   n / p          next / previous day
+;;   N / P          next / previous week
+;;   M-n / M-p      next / previous month
+;;   t              jump to today
+;;   RET            jump to the org file/heading under cursor
+;;   q              quit
+;; ──────────────────────────────────────────────────────────
+(use-package! calfw
+  :commands (calfw-open-calendar-buffer))
+
+(use-package! calfw-org
+  ;; Note: do NOT add :after calfw here. Doing so defers Doom's autoload
+  ;; setup for these commands until calfw is loaded, which means
+  ;; M-x calfw-org-open-calendar (and the SPC o c binding) won't work
+  ;; until something else loads calfw first. calfw-org.el itself does
+  ;; (require 'calfw) at its top, so the dependency is handled.
+  :commands (calfw-org-open-calendar
+             calfw-org-create-source)
+  :config
+  ;; Let calfw-org's own keybindings win in org buffers reached from the cal.
+  (setq calfw-org-overwrite-default-keybinding t))
+
+;; Nicer Unicode box-drawing characters for the calendar grid.
+;; Defaults are ASCII (+, -, |) which look noisy. These render as
+;; smooth heavy lines in any decent monospace font.
+(after! calfw
+  (setq calfw-fchar-junction         ?╋
+        calfw-fchar-vertical-line    ?┃
+        calfw-fchar-horizontal-line  ?━
+        calfw-fchar-left-junction    ?┣
+        calfw-fchar-right-junction   ?┫
+        calfw-fchar-top-junction     ?┯
+        calfw-fchar-top-left-corner  ?┏
+        calfw-fchar-top-right-corner ?┓))
+#+end_src
+
+* Review capture templates
+:PROPERTIES:
+:CUSTOM_ID: review-captures
+:END:
+
+Helpers for the multi-cadence review system: weekly / monthly / quarterly /
+annual. Each command creates a dated file under =~/org/reviews/<period>/=
+from a template in =~/.config/doom/templates/= if the file does not yet
+exist, otherwise just opens the existing file. *Idempotent* — re-running
+on the same day during the same week / month / quarter / year does not
+duplicate the template body.
+
+Deviation from PRD §9.3.8: the PRD wired reviews through =org-capture=,
+which appends the template body on every invocation (so opening the same
+weekly review twice produces two stacked copies of the structure).
+Replacing with a small "find-or-create" helper avoids that bug.
+
+#+begin_src emacs-lisp
+;; ──────────────────────────────────────────────────────────
+;; Review system — find-or-create review files from templates
+;; ──────────────────────────────────────────────────────────
+
+(defun life-os/--current-quarter ()
+  "Return the calendar quarter (1–4) for today as an integer."
+  (1+ (/ (1- (string-to-number (format-time-string "%m"))) 3)))
+
+(defun life-os/--make-review-file (file template-name &optional extra-subs)
+  "Create FILE from ~/.config/doom/templates/TEMPLATE-NAME if missing.
+Expands org-style =%<...>= time codes. EXTRA-SUBS is an alist of
+=(literal . replacement)= pairs applied after time expansion (used to
+substitute =%q= for the current quarter, since =%q= is not a valid
+=format-time-string= code)."
+  (unless (file-exists-p file)
+    (make-directory (file-name-directory file) t)
+    (let ((tmpl (expand-file-name template-name "~/.config/doom/templates/")))
+      (with-temp-file file
+        (insert-file-contents tmpl)
+        ;; Expand %<...> format-time-string codes.
+        (goto-char (point-min))
+        (while (re-search-forward "%<\\([^>]+\\)>" nil t)
+          (replace-match (format-time-string (match-string 1)) t t))
+        ;; Apply any extra literal substitutions.
+        (dolist (sub extra-subs)
+          (goto-char (point-min))
+          (while (search-forward (car sub) nil t)
+            (replace-match (cdr sub) t t)))))))
+
+(defun life-os/open-weekly-review ()
+  "Open this ISO week's review file, creating from template if missing."
+  (interactive)
+  (let ((file (expand-file-name
+               (format-time-string "~/org/reviews/weekly/%Y-W%V.org"))))
+    (life-os/--make-review-file file "weekly-review.org")
+    (find-file file)))
+
+(defun life-os/open-monthly-review ()
+  "Open this month's review file, creating from template if missing."
+  (interactive)
+  (let ((file (expand-file-name
+               (format-time-string "~/org/reviews/monthly/%Y-%m.org"))))
+    (life-os/--make-review-file file "monthly-review.org")
+    (find-file file)))
+
+(defun life-os/open-quarterly-review ()
+  "Open this quarter's review file, creating from template if missing."
+  (interactive)
+  (let* ((q (life-os/--current-quarter))
+         (qs (number-to-string q))
+         (file (expand-file-name
+                (format "~/org/reviews/quarterly/%s-Q%s.org"
+                        (format-time-string "%Y") qs))))
+    (life-os/--make-review-file file "quarterly-review.org"
+                                `(("%q" . ,qs)))
+    (find-file file)))
+
+(defun life-os/open-annual-review ()
+  "Open this year's review file, creating from template if missing."
+  (interactive)
+  (let ((file (expand-file-name
+               (format-time-string "~/org/reviews/annual/%Y.org"))))
+    (life-os/--make-review-file file "annual-review.org")
+    (find-file file)))
+#+end_src
+
+* Keybindings
+:PROPERTIES:
+:CUSTOM_ID: keybindings
+:END:
+
+Custom leader-key bindings.
+
+| Binding | Action |
+|-------+----------------------------------------|
+| =SPC o c= | Open calfw month calendar |
+| =SPC A D= | Daily dashboard |
+| =SPC A W= | Weekly dashboard |
+| =SPC A M= | Monthly dashboard |
+| =SPC A Q= | Quarterly dashboard |
+| =SPC A Y= | Annual dashboard |
+| =SPC X i= | Capture inbox task |
+| =SPC X s= | Capture someday/maybe |
+| =SPC X w= | Open weekly review |
+| =SPC X m= | Open monthly review |
+| =SPC X q= | Open quarterly review |
+| =SPC X y= | Open annual review |
+
+Note: defining =SPC X= as a prefix-map shadows Doom's default
+=SPC X= → =org-capture= single binding. The full =org-capture= menu
+is still reachable via =M-x org-capture= or =C-c c=.
+
+#+begin_src emacs-lisp
+;; ──────────────────────────────────────────────────────────
+;; Leader-key bindings — Life OS
+;; ──────────────────────────────────────────────────────────
+;; ──────────────────────────────────────────────────────────
+;; Agenda navigation — force j/k to mean "down/up" everywhere in the
+;; agenda, including on org-super-agenda section header lines.
+;;
+;; Super-agenda sets `org-super-agenda-header-map' as a `keymap' /
+;; `local-map' text property on each group header (e.g. "📥 Inbox").
+;; That map is a copy of `org-agenda-mode-map' where j = goto-date,
+;; k = capture — and because text-property keymaps win over buffer-
+;; local evil bindings, j/k stop being motion keys when point is on
+;; a header. We rebind both in that map, plus in the regular agenda
+;; map for completeness.
+;; ──────────────────────────────────────────────────────────
+(map! :map org-agenda-mode-map
+      :nm "j" #'org-agenda-next-line
+      :nm "k" #'org-agenda-previous-line)
+
+(after! org-super-agenda
+  (define-key org-super-agenda-header-map "j" #'org-agenda-next-line)
+  (define-key org-super-agenda-header-map "k" #'org-agenda-previous-line))
+
+(map! :leader
+      ;; Calendar — bind SPC o c directly (simpler than :prefix wrapper).
+      :desc "Calfw month calendar" "o c" #'calfw-org-open-calendar
+
+      ;; Custom agenda dashboards
+      (:prefix-map ("A" . "agenda dashboards")
+       :desc "Daily"     "D" (cmd! (org-agenda nil "D"))
+       :desc "Weekly"    "W" (cmd! (org-agenda nil "W"))
+       :desc "Monthly"   "M" (cmd! (org-agenda nil "M"))
+       :desc "Quarterly" "Q" (cmd! (org-agenda nil "Q"))
+       :desc "Annual"    "Y" (cmd! (org-agenda nil "Y")))
+
+      ;; Captures (X for eXpress capture, to avoid collision with notes)
+      (:prefix-map ("X" . "capture")
+       :desc "Inbox task"        "i" (cmd! (org-capture nil "i"))
+       :desc "Someday / maybe"   "s" (cmd! (org-capture nil "s"))
+       :desc "Weekly review"     "w" #'life-os/open-weekly-review
+       :desc "Monthly review"    "m" #'life-os/open-monthly-review
+       :desc "Quarterly review"  "q" #'life-os/open-quarterly-review
+       :desc "Annual review"     "y" #'life-os/open-annual-review))
+#+end_src
+
+* Org writing experience
+:PROPERTIES:
+:CUSTOM_ID: org-writing
+:END:
+
+Make org buffers feel more like a writing app: no line numbers, text
+centered with comfortable margins via Olivetti.
+
+- =olivetti-body-width 100= gives a ~100-column-wide content column,
+  with extra width centered as empty margin. Adjust to taste (an
+  integer = columns, a float = fraction of frame width).
+- Line numbers off for both =org-mode= and =org-agenda-mode= since
+  they're noise in prose / dashboard views.
+
+#+begin_src emacs-lisp
+;; ──────────────────────────────────────────────────────────
+;; Olivetti — centered writing column for org buffers
+;; ──────────────────────────────────────────────────────────
+(use-package! olivetti
+  :hook (org-mode . olivetti-mode)
+  :init
+  (setq-default olivetti-body-width 0.65        ; 65% of frame width
+                olivetti-minimum-body-width 80  ; never narrower than this
+                olivetti-style nil))
+
+;; ──────────────────────────────────────────────────────────
+;; Disable line numbers in org-mode and the agenda.
+;; Doom's global default is `t`; this overrides for those modes only.
+;; ──────────────────────────────────────────────────────────
+(add-hook! '(org-mode-hook org-agenda-mode-hook)
+  (defun life-os/disable-line-numbers ()
+    (display-line-numbers-mode -1)))
+#+end_src
+
+* LaTeX previews
+:PROPERTIES:
+:CUSTOM_ID: latex-previews
+:END:
+
+Org-mode renders inline LaTeX (=$...$=, =\(...\)=, =\[...\]=, =begin{...}=)
+to PNG images via the system's =latex= + =dvipng=. The relevant variable
+is =org-format-latex-options=:
+
+- =:scale= — image scale relative to font (default 1.0). Lower = smaller.
+- =:foreground= — color of the rendered glyphs. Setting it to a real
+  color makes formulas visually pop against body text without needing
+  to read the inline markers.
+
+After changing these, refresh previews with =C-c C-x C-l= twice (off,
+then on) on a buffer, or use =org-latex-preview= directly.
+
+#+begin_src emacs-lisp
+;; ──────────────────────────────────────────────────────────
+;; Inline LaTeX preview — size and color.
+;;
+;; Each formula is hashed and rendered to a PNG cached under
+;; `ltximg/' next to the org file. When options change, NEW formulas
+;; pick up the new settings, but existing PNGs are reused. To force
+;; everything to re-render, blow away the cache:
+;;     M-x life-os/clear-latex-previews
+;; then C-c C-x C-l once on the buffer to regenerate.
+;; ──────────────────────────────────────────────────────────
+(after! org
+  (setq org-format-latex-options
+        (plist-put org-format-latex-options :scale 1.0))      ; size
+  (setq org-format-latex-options
+        (plist-put org-format-latex-options :foreground "#b7bdf8")) ; lavender
+  (setq org-format-latex-options
+        (plist-put org-format-latex-options :background 'default)))
+
+(defun life-os/clear-latex-previews ()
+  "Delete cached LaTeX preview PNGs for the current org file."
+  (interactive)
+  (let* ((dir (expand-file-name "ltximg" default-directory)))
+    (when (file-directory-p dir)
+      (delete-directory dir t)
+      (message "Cleared LaTeX preview cache at %s" dir))))
+
+;; ──────────────────────────────────────────────────────────
+;; Center display-math LaTeX previews (\\[…\\], $$…$$, \\begin{…}).
+;; Inline math ($…$, \\(…\\)) is left alone.
+;;
+;; Org renders each formula to a PNG and shows it as an overlay at
+;; the formula's location. To "center" the result we add a
+;; `before-string' with `display' = (space :width PX) where PX is
+;; half the leftover horizontal pixels in the window.
+;; ──────────────────────────────────────────────────────────
+(defun life-os/--center-org-latex-displays (&rest _)
+  "Add a centering pad to display-math LaTeX preview overlays."
+  (when (derived-mode-p 'org-mode)
+    (dolist (ov (overlays-in (point-min) (point-max)))
+      (when (eq (overlay-get ov 'org-overlay-type) 'org-latex-overlay)
+        (let ((display (overlay-get ov 'display)))
+          (when (and (consp display) (eq (car display) 'image))
+            (save-excursion
+              (goto-char (overlay-start ov))
+              (when (looking-at-p
+                     "[ \t]*\\(\\\\\\[\\|\\$\\$\\|\\\\begin{\\)")
+                (let* ((img-w (car (image-size display t)))
+                       (win-w (window-pixel-width))
+                       (pad   (max 0 (/ (- win-w img-w) 2))))
+                  (overlay-put ov 'before-string
+                               (propertize
+                                " " 'display
+                                `(space :width (,pad)))))))))))))
+
+(advice-add 'org-toggle-latex-fragment
+            :after #'life-os/--center-org-latex-displays)
+(advice-add 'org-latex-preview
+            :after #'life-os/--center-org-latex-displays)
+#+end_src
+
+* Visual config
+:PROPERTIES:
+:CUSTOM_ID: visual
+:END:
+
+Theme (doom-tokyo-night), fonts (JetBrainsMono NFM), org-modern styling, and
+heading-face tweaks. This is the block you'll come back to most for
+personal tuning — change theme name or font size to taste.
+
+#+begin_src emacs-lisp
+;; ──────────────────────────────────────────────────────────
+;; Theme — Catppuccin Macchiato (matches Obsidian AnuPpuccin)
+;;
+;; catppuccin-flavor MUST be set before the theme is loaded.
+;; Switch flavor later with: (setq catppuccin-flavor 'mocha)
+;; then M-x catppuccin-reload.
+;; Available flavors: 'latte (light) / 'frappe / 'macchiato / 'mocha (dark)
+;; ──────────────────────────────────────────────────────────
+(setq catppuccin-flavor 'macchiato)
+(setq doom-theme 'catppuccin)
+
+;; ──────────────────────────────────────────────────────────
+;; Fonts — JetBrainsMono NFM everywhere
+;; ──────────────────────────────────────────────────────────
+;; doom-font           — primary monospace face
+;; doom-variable-pitch — used for prose (set to mono on purpose, per user pref)
+;; doom-serif-font     — used by some org faces; same family for consistency
+(setq doom-font            (font-spec :family "JetBrainsMono NFM" :size 16 :weight 'regular)
+      doom-variable-pitch-font (font-spec :family "JetBrainsMono NFM" :size 16)
+      doom-serif-font    (font-spec :family "JetBrainsMono NFM" :size 16 :weight 'regular))
+
+;; Small UI niceties
+(setq-default line-spacing 0.15)
+
+;; ──────────────────────────────────────────────────────────
+;; org-modern — modern visual styling for org-mode
+;; ──────────────────────────────────────────────────────────
+(use-package! org-modern
+  :after org
+  :hook (org-mode . org-modern-mode)
+  :hook (org-agenda-finalize . org-modern-agenda)
+  :config
+  (setq org-modern-star      ["◉" "○" "✸" "✿" "✤" "✜" "◆"]
+        org-modern-list      '((?- . "•") (?+ . "‣") (?* . "▸"))
+        org-modern-checkbox  '((?X . "☑") (?- . "▣") (?\s . "☐"))
+        org-modern-table-vertical 1
+        org-modern-table-horizontal 0.2
+        org-modern-block-fringe nil
+        ;; Catppuccin Macchiato palette
+        ;;   green #a6da95   blue #8aadf4   yellow #eed49f
+        ;;   red   #ed8796   overlay0 #6e738d
+        org-modern-todo-faces
+        '(("TODO" :foreground "#a6da95" :weight bold)   ; green
+          ("STRT" :foreground "#8aadf4" :weight bold)   ; blue
+          ("WAIT" :foreground "#eed49f" :weight bold)   ; yellow
+          ("DONE" :foreground "#6e738d" :weight normal) ; muted
+          ("KILL" :foreground "#ed8796" :weight bold)))) ; red
+
+;; Larger, heavier headings in org files for visual hierarchy.
+;;
+;; Org uses `org-level-1' … `org-level-8' for headlines (they nominally
+;; inherit from outline-*, but Catppuccin and most themes set
+;; org-level-* directly, which breaks the inheritance). So we override
+;; those specifically. Available weights, lightest → heaviest:
+;;   regular medium semi-bold bold extra-bold black ultra-bold
+;; JetBrainsMono NFM ships all of them as real font weights.
+(custom-set-faces!
+  '(org-document-title :height 1.8  :weight black)
+  '(org-level-1        :height 1.5  :weight extra-bold)
+  '(org-level-2        :height 1.3  :weight extra-bold)
+  '(org-level-3        :height 1.15 :weight extra-bold)
+  '(org-level-4        :height 1.05 :weight bold)
+  ;; Keep outline-* in sync for non-org buffers that use them.
+  '(outline-1          :height 1.5  :weight extra-bold)
+  '(outline-2          :height 1.3  :weight extra-bold)
+  '(outline-3          :height 1.15 :weight extra-bold)
+  '(outline-4          :height 1.05 :weight bold))
+
+;; ──────────────────────────────────────────────────────────
+;; Org table styling.
+;;
+;; Catppuccin sets `org-table' foreground to a muted color (and so do
+;; most themes), making cell text harder to read than body text. Force
+;; the bright Macchiato text color (#cad3f5) explicitly.
+;;
+;; Org has no built-in "first row is a header" face for the in-buffer
+;; display (the `org-table-header' face only affects the window's
+;; sticky header line, not the visible row). For headers, use bold
+;; markers — *Header text* — and our mauve bold accent will style them.
+;; ──────────────────────────────────────────────────────────
+(custom-set-faces!
+  '(org-table :foreground "#cad3f5"))
+
+;; ──────────────────────────────────────────────────────────
+;; Accent color for bold and italic — Catppuccin mauve (#c6a0f6).
+;;
+;; Setting :foreground only (no :weight / :slant override) preserves
+;; the existing bold weight / italic slant — we just tint the color.
+;; Affects ALL bold/italic in Emacs, not just org — mauve is gentle
+;; enough that UI elements still look correct.
+;; ──────────────────────────────────────────────────────────
+(custom-set-faces!
+  '(bold   :foreground "#c6a0f6")
+  '(italic :foreground "#c6a0f6"))
 #+end_src

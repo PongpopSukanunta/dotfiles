@@ -1,0 +1,29 @@
+#+title: Annual Review %<%Y>
+#+date: %<%Y-%m-%d>
+#+filetags: :review:annual:
+
+* The Year in Review
+
+** Time spent by pillar
+#+BEGIN: clocktable :scope agenda :block thisyear :maxlevel 2 :compact t
+#+END:
+
+** Major accomplishments
+-
+
+** Major lessons
+-
+
+** What changed about me this year
+-
+
+* Looking at the four quarterly reviews
+Open each quarterly review. Patterns? Trajectory?
+
+* Next year
+
+** Value goals for next year
+
+** Pillars
+
+** Theme of the year
