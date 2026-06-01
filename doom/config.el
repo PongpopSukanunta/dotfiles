@@ -168,6 +168,90 @@
            :unnarrowed t))))
 
 ;; ──────────────────────────────────────────────────────────
+;; Fix: keep the roam :ID: drawer at the TOP of new files.
+;;
+;; THE CROSS-MACHINE DISCREPANCY (CLAUDE.md). On a brand-new
+;; `file+head' capture, org-roam sets its insert point to
+;; (point-max) — see org-roam-capture--setup-target-location, the
+;; `(setq p (point-max))' line. For our templates that end with
+;; headings (Goal/Pillar/Project/Literature/Meeting), point-max sits
+;; *inside the last subtree*, so `org-entry-put' drops the :ID: into
+;; that last heading — i.e. the bottom of the file. Templates with no
+;; headings (Concept/Fleeting) land at the top by luck. Win11 puts it
+;; at the top (older org-roam where p was point-min), hence the split.
+;;
+;; A second flavour of the same bug bites the dailies (SPC n r d …).
+;; Those use an `entry'-type template, and for entry captures org-roam
+;; stamps a *fresh* :ID: on the new `* HH:MM' heading every single time
+;; (via org-roam-capture--create-id-for-entry) — so each daily capture
+;; appends yet another ID at the bottom and every log line becomes its
+;; own node. We want the day FILE to be the one node and the timestamp
+;; lines to stay plain.
+;;
+;; Shared fix below: `life-os/roam-lift-id-to-top' cuts a stray ":ID:"
+;; line from wherever org-roam left it and re-creates it as a single
+;; file-level drawer at the very top. Two hooks call it — one for
+;; ordinary file nodes (only on a brand-new file) and one for dailies
+;; (every capture, to strip the per-entry ID). Both are idempotent: a
+;; no-op when the ID is already up top, so they're safe on both
+;; machines and survive a future `doom upgrade'.
+;; ──────────────────────────────────────────────────────────
+(defun life-os/roam-lift-id-to-top (id)
+  "Ensure ID lives in a file-level :PROPERTIES: drawer at the top.
+Cut any stray `:ID: ID' line org-roam left below the first heading
+(plus its emptied drawer) and re-create ID at the file level.  A
+no-op when ID is already the top-level file ID."
+  (when (and id (derived-mode-p 'org-mode))
+    (org-with-wide-buffer
+     (unless (equal id (org-entry-get (point-min) "ID"))
+       ;; Cut the stray ":ID: <id>" line wherever org-roam put it…
+       (goto-char (point-min))
+       (when (re-search-forward
+              (format "^[ \t]*:ID:[ \t]+%s[ \t]*\n" (regexp-quote id))
+              nil t)
+         (let ((beg (match-beginning 0)))
+           (delete-region beg (match-end 0))
+           ;; …and tidy the now-empty :PROPERTIES:/:END: pair.
+           (save-excursion
+             (goto-char beg)
+             (forward-line -1)
+             (when (looking-at-p
+                    "^[ \t]*:PROPERTIES:[ \t]*\n[ \t]*:END:[ \t]*\n")
+               (delete-region (point) (progn (forward-line 2) (point)))))))
+       ;; …then (re-)create it as a file-level property at the top,
+       ;; unless the file already carries one (later dailies captures).
+       (unless (org-entry-get (point-min) "ID")
+         (org-entry-put (point-min) "ID" id))))))
+
+(defun life-os/roam-dailies-buffer-p ()
+  "Non-nil when the current buffer's file lives under the dailies dir."
+  (when-let* ((file (buffer-file-name (buffer-base-buffer)))
+              (dir (and (bound-and-true-p org-roam-dailies-directory)
+                        (expand-file-name org-roam-dailies-directory
+                                          org-roam-directory))))
+    (file-in-directory-p file dir)))
+
+(defun life-os/roam-id-to-top ()
+  "Hoist a brand-new *file* node's :ID: to a top-level drawer."
+  (when (and (org-roam-capture--get :new-file)     ; only brand-new files
+             (not (life-os/roam-dailies-buffer-p))); dailies handled below
+    (life-os/roam-lift-id-to-top
+     (org-roam-node-id org-roam-capture--node))))
+
+(defun life-os/roam-daily-file-as-node ()
+  "Keep ONE :ID: on the day file instead of one per dailies entry.
+Strips the per-entry ID org-roam just stamped and ensures a single
+file-level ID up top, so the day is the node and the timestamp lines
+stay plain."
+  (when (life-os/roam-dailies-buffer-p)
+    (life-os/roam-lift-id-to-top
+     (org-roam-node-id org-roam-capture--node))))
+
+(after! org-roam
+  (add-hook 'org-roam-capture-new-node-hook #'life-os/roam-id-to-top)
+  (add-hook 'org-roam-capture-new-node-hook #'life-os/roam-daily-file-as-node))
+
+;; ──────────────────────────────────────────────────────────
 ;; org-capture templates (non-roam)
 ;; ──────────────────────────────────────────────────────────
 (after! org
@@ -245,12 +329,18 @@
 ;; M = Monthly dashboard         (~60–90 min)
 ;; Q = Quarterly dashboard       (~2–3 hr)
 ;; Y = Annual dashboard          (~half day)
+;;
+;; GOTCHA: Doom sets a GLOBAL `org-agenda-start-day' of "-3d", so any
+;; `agenda' block that omits it starts 3 days early (Daily showed the
+;; 29th, not today). Every block below sets it explicitly; nil = today.
+;; Full story in CLAUDE.md → "Gotchas".
 ;; ──────────────────────────────────────────────────────────
 (after! org-agenda
   (setq org-agenda-custom-commands
         '(("D" "Daily dashboard"
            ((agenda ""
                     ((org-agenda-span 1)
+                     (org-agenda-start-day nil)   ; today (not Doom's -3d)
                      (org-agenda-start-with-log-mode '(closed clock state))
                      (org-agenda-overriding-header "📅 TODAY")))
             (todo "STRT"
@@ -264,13 +354,14 @@
           ("W" "Weekly dashboard"
            ((agenda ""
                     ((org-agenda-span 7)
-                     (org-agenda-start-day "-7d")
+                     (org-agenda-start-day "-7d")  ; the 7 days ending yesterday
                      (org-agenda-start-with-log-mode '(closed))
                      (org-agenda-overriding-header "📊 PAST WEEK")))
             (agenda ""
                     ((org-agenda-span 7)
-                     (org-agenda-start-day "+1d")
-                     (org-agenda-overriding-header "🔮 NEXT WEEK")))
+                     (org-agenda-start-day nil)    ; today + next 6 days (was "+1d",
+                                                   ; which skipped today entirely)
+                     (org-agenda-overriding-header "🔮 NEXT 7 DAYS")))
             (todo "STRT|WAIT"
                   ((org-agenda-overriding-header "▶/⏸ Active and Blocked")))))
 
@@ -343,6 +434,153 @@
         calfw-fchar-top-junction     ?┯
         calfw-fchar-top-left-corner  ?┏
         calfw-fchar-top-right-corner ?┓))
+
+;; ──────────────────────────────────────────────────────────
+;; Calfw faces — Catppuccin Macchiato
+;;
+;; Out of the box calfw uses hard primary blues/reds that clash with
+;; the Catppuccin theme. Remap every calfw face to the Macchiato
+;; palette so the calendar matches the rest of Emacs.
+;;
+;; Palette (Macchiato):
+;;   base    #24273a   surface0 #363a4f   surface1 #494d64
+;;   overlay0 #6e738d  subtext0 #a5adcb   text     #cad3f5
+;;   blue    #8aadf4   lavender #b7bdf8    teal     #8bd5ca
+;;   green   #a6da95   yellow   #eed49f    peach    #f5a97f
+;;   red     #ed8796   mauve    #c6a0f6
+;;
+;; custom-set-faces! is applied after the theme loads, so these win.
+;; ──────────────────────────────────────────────────────────
+(custom-set-faces!
+  ;; Big month title at the top.
+  '(calfw-title-face        :foreground "#c6a0f6" :weight bold :height 2.0)
+  ;; Weekday header row (Mon Tue Wed …).
+  '(calfw-header-face       :foreground "#b7bdf8" :weight bold)
+  ;; Weekend column tints.
+  '(calfw-sunday-face       :foreground "#ed8796" :weight bold)
+  '(calfw-saturday-face     :foreground "#8aadf4" :weight bold)
+  '(calfw-holiday-face      :foreground "#f5a97f")
+  ;; The box-drawing grid — keep it quiet so events stand out.
+  '(calfw-grid-face         :foreground "#494d64")
+  ;; Day number in each cell, and event/period content.
+  '(calfw-day-title-face    :foreground "#a5adcb")
+  '(calfw-default-day-face  :foreground "#cad3f5" :weight bold)
+  ;; Event text: neutral (the time prefix is the accent — see transformer below).
+  '(calfw-default-content-face :foreground "#cad3f5")
+  '(calfw-periods-face      :foreground "#8bd5ca")
+  ;; Today: subtle surface highlight + a solid blue day number.
+  '(calfw-today-face        :background "#363a4f")
+  '(calfw-today-title-face  :foreground "#24273a" :background "#8aadf4" :weight bold)
+  ;; Days spilling in from adjacent months, annotations, toolbar.
+  '(calfw-disable-face      :foreground "#6e738d")
+  '(calfw-annotation-face   :foreground "#8087a2")
+  '(calfw-toolbar-face            :foreground "#6e738d" :background "#1e2030")
+  '(calfw-toolbar-button-off-face :foreground "#6e738d")
+  '(calfw-toolbar-button-on-face  :foreground "#8aadf4" :weight bold))
+
+;; ──────────────────────────────────────────────────────────
+;; No background "blob" on entries
+;;
+;; calfw colors each agenda item with its SOURCE color (default
+;; "Seagreen4"), compositing it into a faint :foreground AND
+;; :background — the green text + green blob behind every entry.
+;;
+;; We can't just pass a nil source color: the periods code path
+;; (`calfw--source-period-bgcolor-get') feeds the color straight to
+;; `color-name-to-rgb', so nil crashes rendering. Instead, override
+;; the two face-deriving functions to ignore the source color and
+;; return the plain DEFAULT-FACE the callers already pass
+;; (`calfw-default-content-face' / `calfw-periods-face' — both styled
+;; above). Result: theme-coherent text, no source-derived colors.
+;; ──────────────────────────────────────────────────────────
+(after! calfw
+  (defadvice! life-os/calfw-plain-content-face (_text default-face)
+    "Ignore the per-source color; use the plain content face (no bg blob)."
+    :override #'calfw--render-get-face-content
+    default-face)
+
+  (defadvice! life-os/calfw-plain-period-face (_text default-face)
+    "Ignore the per-source color; use the plain period face."
+    :override #'calfw--render-get-face-period
+    default-face))
+
+;; ──────────────────────────────────────────────────────────
+;; Accent the time
+;;
+;; calfw-org prefixes timed entries with "HH:MM " but leaves it the
+;; same face as the rest of the entry. Wrap the default formatter and
+;; tint that leading time peach + bold so the start time pops.
+;; ──────────────────────────────────────────────────────────
+(defun life-os/calfw-org-summary-format (item)
+  "Like `calfw-org-summary-format', but accent the leading HH:MM time."
+  (let ((line (calfw-org-summary-format item)))
+    (when (and (stringp line)
+               (string-match "\\`[0-9]\\{2\\}:[0-9]\\{2\\} " line))
+      (add-face-text-property (match-beginning 0) (match-end 0)
+                              '(:foreground "#f5a97f" :weight bold) ; peach
+                              nil line))
+    line))
+
+(after! calfw-org
+  (setq calfw-org-schedule-summary-transformer
+        #'life-os/calfw-org-summary-format))
+
+;; ──────────────────────────────────────────────────────────
+;; Evil — let calfw's single-key navigation through
+;;
+;; `calfw-calendar-mode' is a hand-rolled major mode (NOT
+;; define-derived-mode): it sets `major-mode' by hand and only runs
+;; its own `calfw-calendar-mode-hook', never `after-change-major-
+;; mode-hook'. So evil never initializes a sensible state for it,
+;; falls back to normal state, and its keymap shadows calfw's
+;; single-key bindings (n p N P d w m t g q) — the buffer feels
+;; frozen. (Whether evil-collection happens to patch this is load-
+;; order luck, which is why it bites on Linux but not Windows.)
+;;
+;; Force the buffer into evil "emacs" state so every key reaches
+;; calfw's own keymap. `evil-set-initial-state' covers any later
+;; re-initialization; the hook covers the initial open.
+;; ──────────────────────────────────────────────────────────
+(after! calfw
+  (evil-set-initial-state 'calfw-calendar-mode 'emacs)
+  (add-hook 'calfw-calendar-mode-hook #'evil-emacs-state)
+
+  ;; ────────────────────────────────────────────────────────
+  ;; Fit the grid to the full window width on open
+  ;;
+  ;; calfw sizes the grid from the window at *creation* time, before
+  ;; switch-to-buffer has grown the window to full width — so it opens
+  ;; at ~2/3 width until you press `g'. Re-render once on the next idle
+  ;; tick, when the window has settled at its final size.
+  ;;
+  ;; NOTE: the buffer is passed as a *timer argument*, not captured in
+  ;; a closure — config.el is tangled without a lexical-binding cookie,
+  ;; so a closed-over `buf' would be void at timer time.
+  ;; ────────────────────────────────────────────────────────
+  (defadvice! life-os/calfw-fit-to-window (&rest _)
+    "Refresh the calendar after the window reaches its final width."
+    :after #'calfw-open-calendar-buffer
+    (run-with-idle-timer
+     0 nil
+     (lambda (b)
+       (when (and (buffer-live-p b)
+                  (eq (buffer-local-value 'major-mode b) 'calfw-calendar-mode))
+         (with-current-buffer b
+           (calfw-refresh-calendar-buffer nil))))
+     (current-buffer))))
+
+;; ──────────────────────────────────────────────────────────
+;; Pre-build agenda buffers before opening calfw
+;;
+;; calfw-org warns "open org-agenda buffer first" and skips TODO-
+;; keyword fontification when `org-todo-keywords-for-agenda' is unset
+;; — which it is until org-agenda has been built once. Populate it up
+;; front so the calendar colors TODO keywords and the warning is gone.
+;; ──────────────────────────────────────────────────────────
+(defadvice! life-os/calfw-prep-agenda (&rest _)
+  "Populate `org-todo-keywords-for-agenda' before calfw renders."
+  :before #'calfw-org-open-calendar
+  (org-agenda-prepare-buffers (org-agenda-files)))
 
 ;; ──────────────────────────────────────────────────────────
 ;; Review system — find-or-create review files from templates
@@ -624,3 +862,58 @@ substitute =%q= for the current quarter, since =%q= is not a valid
 (custom-set-faces!
   '(bold   :foreground "#c6a0f6")
   '(italic :foreground "#c6a0f6"))
+
+;; ──────────────────────────────────────────────────────────
+;; Finance directory + main journal
+;; ──────────────────────────────────────────────────────────
+(defvar life-os/finance-directory (file-truename "~/finance/")
+  "Root directory for hledger journals.")
+
+(defvar life-os/finance-main-journal
+  (expand-file-name "main.journal" life-os/finance-directory)
+  "Top-level hledger journal (includes the per-year files).")
+
+;; ──────────────────────────────────────────────────────────
+;; ledger-mode → hledger
+;;
+;; ledger-mode targets the `ledger' CLI by default; point it at the
+;; `hledger' binary instead. `ledger-mode-should-check-version' is
+;; disabled because that check only understands ledger's --version.
+;; ──────────────────────────────────────────────────────────
+(after! ledger-mode
+  (setq ledger-binary-path "hledger"
+        ledger-mode-should-check-version nil
+        ;; Open report buffers in a side window, keep the journal visible.
+        ledger-report-links-in-same-window nil
+        ;; Re-align postings to this column on `ledger-post-align-postings'.
+        ledger-post-amount-alignment-column 60)
+
+  ;; Tell ledger-mode where the whole-ledger lives, so reports invoked
+  ;; from any journal buffer operate over the full file set.
+  (setenv "LEDGER_FILE" life-os/finance-main-journal))
+
+;; hledger uses the .journal extension; also map the .hledger extension.
+(add-to-list 'auto-mode-alist '("\\.journal\\'" . ledger-mode))
+(add-to-list 'auto-mode-alist '("\\.hledger\\'" . ledger-mode))
+
+;; ──────────────────────────────────────────────────────────
+;; Open the main journal — SPC o f
+;; ──────────────────────────────────────────────────────────
+(defun life-os/open-finance-journal ()
+  "Open the top-level hledger journal."
+  (interactive)
+  (find-file life-os/finance-main-journal))
+
+(map! :leader
+      :desc "Finance journal" "o f" #'life-os/open-finance-journal)
+
+;; ──────────────────────────────────────────────────────────
+;; Roam graph — SPC n r g
+;;
+;; Doom binds SPC n r g to `org-roam-graph', which shells out to the
+;; Graphviz `dot' binary (not installed here) to render a static SVG.
+;; We use org-roam-ui instead — an in-browser, live, interactive graph
+;; that needs no external executable — so repoint the same key to it.
+;; ──────────────────────────────────────────────────────────
+(map! :leader
+      :desc "Roam graph (UI)" "n r g" #'org-roam-ui-open)
