@@ -5,7 +5,7 @@
 * Past Week
 
 ** Time spent
-#+BEGIN: clocktable :scope agenda :block lastweek :maxlevel 3 :compact t
+#+BEGIN: clocktable :scope agenda :block thisweek :maxlevel 3 :compact t
 #+END:
 
 ** Accomplishments

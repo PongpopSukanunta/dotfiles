@@ -126,3 +126,11 @@ bottom of the same file.
   bindings shadow calfw's keys (frozen calendar). Fixed by forcing evil emacs
   state. Hand-rolled major modes are the likely culprit for other Linux/Win11
   evil divergences.
+- **`doom sync` is broken on Windows due to an upstream Doom bug.** The literate
+  module's post-tangle restart script (`modules/config/literate/autoload.el:65`)
+  hardcodes bash syntax (`__NOTANGLE=1 $@`), which PowerShell rejects. Workaround:
+  `$env:__NOTANGLE = 1` is set in the PowerShell profile
+  (`~/.config/powershell/user_profile.ps1`) to skip the tangle/restart step
+  entirely. This is the correct behavior on Windows anyway — `config.org` is only
+  edited on Arch, and Windows just consumes the committed `config.el`. Just run
+  `doom sync` normally.
